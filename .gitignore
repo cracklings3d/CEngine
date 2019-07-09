@@ -1,0 +1,11 @@
+# build/
+# build.sh
+# CMakeLists.txt
+
+*.*
+build/
+.vscode/
+
+!.gitignore
+!*.hh
+!*.cc
