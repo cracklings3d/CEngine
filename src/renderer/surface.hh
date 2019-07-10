@@ -12,6 +12,8 @@
 namespace CEngine {
 class surface {
 public:
+  virtual ~surface() {};
+
   virtual void initialize(int width, int height)                   = 0;
   virtual void terminate()                                         = 0;
   virtual void show()                                              = 0;
@@ -23,14 +25,14 @@ protected:
 
 class glfw_vk_surface final : public surface {
 protected:
-  std::shared_ptr<CEngine::render_device_vk> renderer;
-  int                                        width;
-  int                                        height;
-  std::string                                title;
-  GLFWwindow*                                wnd;
+  std::shared_ptr<CEngine::render_device_vk> renderer = nullptr;
+  int                                        width = 1920;
+  int                                        height = 1080;
+  std::string                                title = "";
+  GLFWwindow*                                wnd = nullptr;
 
 public:
-  ~glfw_vk_surface() {
+  virtual ~glfw_vk_surface() override {
     renderer->terminate();
   }
 
