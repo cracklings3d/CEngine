@@ -13,16 +13,19 @@ public:
     create_device();
   }
 
-  virtual ~render_device_vk() override {}
-
-  virtual void initialize() override {}
-  virtual void flush() override {}
-
-  virtual void terminate() override {
+  virtual ~render_device_vk() override {
     if (device)
       device.destroy();
     if (instance)
       instance.destroy();
+	}
+
+  virtual void initialize() override { prepare_pipeline(); }
+  virtual void flush() override {}
+
+  virtual void terminate() override {
+		if(g_command_pool)
+			device.destroyCommandPool(g_command_pool);
   }
 
   virtual void render(const renderable &item) const override {}
@@ -32,9 +35,12 @@ protected:
   vk::PhysicalDevice physical_device;
   vk::Device         device;
   vk::Queue          gqueue;
-  float              gq_priority = 1;
   vk::Queue          cqueue;
+  float              gq_priority = 1;
   float              cq_priority = .5;
+  int                gq_family_index;
+  int                cq_family_index;
+  vk::CommandPool    g_command_pool;
 
   void create_instance() {
     vk::ApplicationInfo app_info{};
@@ -66,40 +72,53 @@ protected:
         std::vector<vk::QueueFamilyProperties> pd_queue_family_properties =
             pd.getQueueFamilyProperties();
 
-        std::vector<vk::DeviceQueueCreateInfo> dev_q_ci{};
-        dev_q_ci.reserve(2);
+        std::vector<vk::DeviceQueueCreateInfo> device_queue_ci{};
+        device_queue_ci.reserve(2);
         vk::DeviceQueueCreateInfo graphics_queue_ci{};
         vk::DeviceQueueCreateInfo compute_queue_ci{};
 
         int i = 0;
         for (const auto &qfprops : pd_queue_family_properties) {
           if (!gqueue && qfprops.queueFlags & vk::QueueFlagBits::eGraphics) {
+            gq_family_index = i;
             graphics_queue_ci.queueFamilyIndex = i;
             graphics_queue_ci.queueCount       = 1;
             graphics_queue_ci.pQueuePriorities = &gq_priority;
-            graphics_queue_ci.flags = vk::DeviceQueueCreateFlagBits::eProtected;
+            // graphics_queue_ci.flags = vk::DeviceQueueCreateFlagBits::eProtected;
           }
           if (!cqueue && qfprops.queueFlags & vk::QueueFlagBits::eCompute) {
+            cq_family_index = i;
             compute_queue_ci.queueFamilyIndex = i;
             compute_queue_ci.queueCount       = 1;
             compute_queue_ci.pQueuePriorities = &cq_priority;
-            compute_queue_ci.flags = vk::DeviceQueueCreateFlagBits::eProtected;
+            // compute_queue_ci.flags = vk::DeviceQueueCreateFlagBits::eProtected;
           }
           i++;
         }
-				dev_q_ci.push_back(graphics_queue_ci);
-				dev_q_ci.push_back(compute_queue_ci);
+        device_queue_ci.push_back(graphics_queue_ci);
+        device_queue_ci.push_back(compute_queue_ci);
 
         vk::DeviceCreateInfo device_create_info = {};
-				device_create_info.pQueueCreateInfos = &dev_q_ci[0];
-				device_create_info.queueCreateInfoCount = dev_q_ci.size();
-
+        device_create_info.pQueueCreateInfos    = &device_queue_ci[0];
+        device_create_info.queueCreateInfoCount = device_queue_ci.size();
 				device = pd.createDevice(device_create_info);
+
+        gqueue = device.getQueue(gq_family_index, 0);
+        cqueue = device.getQueue(cq_family_index, 0);
         return;
       }
     }
     printf("Found no GPU with Vulkan support!"
            " Check your Graphics card and driver.");
+  }
+
+  void prepare_pipeline() {
+    vk::CommandPoolCreateInfo command_pool_ci{};
+    command_pool_ci.queueFamilyIndex = gq_family_index;
+    command_pool_ci.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer |
+                            vk::CommandPoolCreateFlagBits::eProtected;
+
+    g_command_pool = device.createCommandPool(command_pool_ci);
   }
 };
 
